@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="sjsu.research.hera_beta_10.MainActivity">
+
+
+    <Button
+        android:id="@+id/StopBroadcastButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Stop Broadcast"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/BroadcastButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Broadcast"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:layout_editor_absoluteY="16dp"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/stopScanningButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stop Scanning"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:layout_marginTop="48dp"
+        app:layout_constraintTop_toBottomOf="@+id/StopBroadcastButton" />
+
+    <Button
+        android:id="@+id/startScanningButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="StartScanning"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:layout_marginTop="48dp"
+        app:layout_constraintTop_toBottomOf="@+id/StopBroadcastButton"
+        app:layout_constraintHorizontal_bias="0.502" />
+
+    <TextView
+        android:id="@+id/BeaconsReceived"
+        android:layout_width="348dp"
+        android:layout_height="124dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="176dp"
+        app:layout_constraintHorizontal_bias="0.501"
+        tools:layout_editor_absoluteX="28dp" />
+
+    <TextView
+        android:id="@+id/ConnectionState"
+        android:layout_width="346dp"
+        android:layout_height="48dp"
+        android:layout_marginBottom="152dp"
+        android:maxLines = "10"
+        android:scrollbars = "vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent" />
+
+    <TextView
+        android:id="@+id/myDevice"
+        android:layout_width="208dp"
+        android:layout_height="28dp"
+        android:layout_marginLeft="24dp"
+        android:layout_marginTop="72dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginEnd="136dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="420dp"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <TextView
+        android:id="@+id/connectedDevices"
+        android:layout_width="343dp"
+        android:layout_height="111dp"
+        app:layout_constraintHorizontal_bias="0.512"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:layout_editor_absoluteY="379dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="21dp"
+        android:layout_marginTop="20dp"
+        app:layout_constraintTop_toBottomOf="@+id/ConnectionState" />
+
+</android.support.constraint.ConstraintLayout>
