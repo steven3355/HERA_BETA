@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 
 /**
@@ -47,11 +48,16 @@ public class ConnectionSystem {
         return gattConnectionMap.get(gatt);
     }
     public Connection getConnection(BluetoothDevice device) {
-        return deviceConnectionMap.get(device);
+        if (deviceConnectionMap.containsKey(device))
+            return deviceConnectionMap.get(device);
+        else
+            return deviceConnectionMap.put(device, new Connection(device));
     }
     public void putConnection(Connection connection) {
-        deviceConnectionMap.put(connection.getDevice(), connection);
-        gattConnectionMap.put(connection.getGatt(), connection);
+        if (!deviceConnectionMap.containsKey(connection.getDevice()))
+            deviceConnectionMap.put(connection.getDevice(), connection);
+        if (!gattConnectionMap.containsKey(connection.getGatt()) && connection.getGatt() != null)
+            gattConnectionMap.put(connection.getGatt(), connection);
     }
     public void removeConnection(Connection connection) {
         if (connection == null) {
@@ -61,6 +67,9 @@ public class ConnectionSystem {
             deviceConnectionMap.remove(connection.getDevice());
         if (gattConnectionMap.containsKey(connection.getGatt()))
             gattConnectionMap.remove(connection.getGatt());
+    }
+    public boolean isBean(BluetoothGatt gatt) {
+        return gatt.getService(UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE")) != null;
     }
     public static String bytesToHex(byte[] bytes) {
         char[] hexArray = "0123456789ABCDEF".toCharArray();
