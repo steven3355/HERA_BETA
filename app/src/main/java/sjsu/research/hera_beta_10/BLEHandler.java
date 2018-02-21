@@ -65,6 +65,7 @@ public class BLEHandler {
 
     ConnectionSystem mConnectionSystem;
     HERA myHera;
+    MessageSystem mMessageSystem;
     /**
      * BLEHandler Constructor
      */
@@ -77,7 +78,7 @@ public class BLEHandler {
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
         mConnectionSystem = new ConnectionSystem();
         System.out.println("BLE Handler Initiated");
-
+        mMessageSystem = new MessageSystem();
     }
 
     /**
@@ -118,6 +119,7 @@ public class BLEHandler {
                 if (value[1] == 0) {
                     curConnection.setNeighborHERAMatrix();
                     curConnection.resetCache();
+                    mMessageSystem.buildToSnedMessageQueue(curConnection);
                 }
                 mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
             }
@@ -253,7 +255,7 @@ public class BLEHandler {
                 mConnectionSystem.putConnection(new Connection(gatt));
                 Connection curConnection = mConnectionSystem.getConnection(gatt);
                 try {
-                    curConnection.setConnectionHERAMatrix(myHera.getReachabilityMatrix());
+                    curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
                 } catch(IOException e) {
                     e.fillInStackTrace();
                 }
@@ -319,7 +321,6 @@ public class BLEHandler {
             System.out.println("isLast = " + isLast);
             if(isLast == 0) {
                 System.out.println("All " + (prevSegCount + 1) + " segments have been transmitted");
-                DisableConnection(gatt);
                 return;
             }
             BluetoothGattCharacteristic segmentToSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
@@ -327,7 +328,5 @@ public class BLEHandler {
             gatt.writeCharacteristic(segmentToSend);
             System.out.println("Fragment " + (prevSegCount + 1) + " sent");
         }
-
-
     };
 }

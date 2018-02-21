@@ -8,8 +8,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * Created by Steven on 2/7/2018.
@@ -22,20 +24,23 @@ public class Connection {
     private int _clientMTU;
     private int _serverMTU;
     private int _Datasize;
-    private Map<String, List<Double>> _connectionHERAMatrix;
+    private Map<String, List<Double>> _myHERAMatrix;
     private Map<String, List<Double>> _neighborHERAMatrix;
     private byte[] _matrixByteArray;
     private int _totalSegmentCount;
+    private Queue<String> _toSendQueue;
 
     public Connection(BluetoothGatt gatt) {
         _transmitterGatt = gatt;
         _device = gatt.getDevice();
         _cache = new ByteArrayOutputStream();
+        _toSendQueue = new LinkedList<>();
         _clientMTU = 20;
     }
     public Connection(BluetoothDevice device) {
         _device = device;
         _cache = new ByteArrayOutputStream();
+        _toSendQueue = new LinkedList<>();
         _serverMTU = 20;
     }
 
@@ -119,8 +124,8 @@ public class Connection {
         return _Datasize;
     }
 
-    public void setConnectionHERAMatrix (Map<String, List<Double>> map) throws IOException {
-        _connectionHERAMatrix = map;
+    public void setMyHERAMatrix (Map<String, List<Double>> map) throws IOException {
+        _myHERAMatrix = map;
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(map);
@@ -131,6 +136,9 @@ public class Connection {
         _totalSegmentCount = _matrixByteArray.length / _Datasize + (_matrixByteArray.length % _Datasize == 0 ? 0 : 1);
         System.out.println("The Flattened Map is: " + ConnectionSystem.bytesToHex(_matrixByteArray));
     }
+    public Map<String, List<Double>> getMyHERAMatrix() {
+        return _myHERAMatrix;
+    }
 
     public int getTotalSegmentCount() {
         return _totalSegmentCount;
@@ -138,5 +146,22 @@ public class Connection {
 
     public byte[] getMatrixByteArray() {
         return _matrixByteArray;
+    }
+
+    public Queue<String> getToSendQueue() {
+        return _toSendQueue;
+    }
+
+    public String getOneToSendDestination() {
+        return _toSendQueue.poll();
+
+    }
+
+    public boolean isToSendEmpty() {
+        return _toSendQueue.isEmpty();
+    }
+
+    public void pushToSendQueue(String dest) {
+        _toSendQueue.add(dest);
     }
 }

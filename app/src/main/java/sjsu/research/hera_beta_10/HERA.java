@@ -24,6 +24,9 @@ public class HERA implements Serializable {
         reachabilityMatrix.put("abc", new ArrayList<Double>(3){});
         reachabilityMatrix.get("abc").add(1.0);
     }
+    public HERA(Map<String, List<Double>> neighborMatrix) {
+        reachabilityMatrix = neighborMatrix;
+    }
     public HERA(int maxHop, double agingConstant, double[] intrinsicConfidence, double[] weight, int timeUnit, String selfAddress) {
         H = maxHop;
         alpha = agingConstant;
@@ -35,7 +38,7 @@ public class HERA implements Serializable {
     public Map<String, List<Double>> getReachabilityMatrix() {
         return reachabilityMatrix;
     }
-    public double getReachability( String destination) {
+    public double getReachability(String destination) {
         ageMatrix();
         double weightedSum = 0;
         if (!reachabilityMatrix.containsKey(destination)) {
