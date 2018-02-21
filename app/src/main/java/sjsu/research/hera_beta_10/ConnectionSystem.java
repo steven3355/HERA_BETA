@@ -45,7 +45,10 @@ public class ConnectionSystem {
     }
 
     public Connection getConnection(BluetoothGatt gatt) {
-        return gattConnectionMap.get(gatt);
+        if (gattConnectionMap.containsKey(gatt))
+            return gattConnectionMap.get(gatt);
+        else
+            return gattConnectionMap.put(gatt, new Connection(gatt));
     }
     public Connection getConnection(BluetoothDevice device) {
         if (deviceConnectionMap.containsKey(device))

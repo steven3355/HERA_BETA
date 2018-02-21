@@ -52,8 +52,6 @@ public class BLEHandler {
     ParcelUuid BeanServiceUUID = ParcelUuid.fromString("A495FF10-C5B1-4B44-B512-1370F02D74DE");
     ParcelUuid BeanServiceMask = ParcelUuid.fromString("11111100-0000-0000-0000-000000000000");
 
-//    UUID mCharUUID2 = UUID.fromString("00003001-0000-1000-8000-00805f9b34fb");
-
     //Scanner
     BluetoothLeScanner mBluetoothLeScanner;
 
@@ -100,6 +98,7 @@ public class BLEHandler {
             Connection curConnection;
             if (newState == BluetoothGatt.STATE_CONNECTED) {
                 curConnection = new Connection(device);
+                System.out.println("New server side connection formed with " + curConnection.getDevice().getAddress().toString());
                 mConnectionSystem.putConnection(curConnection);
                 System.out.println("Connection formed with " + device.getAddress().toString());
             }
@@ -251,14 +250,13 @@ public class BLEHandler {
             super.onConnectionStateChange(gatt, status, newState);
             connecting = false;
             if(newState == BluetoothGatt.STATE_CONNECTED){
-                Connection curConnection = new Connection(gatt);
-                mConnectionSystem.putConnection(curConnection);
+                mConnectionSystem.putConnection(new Connection(gatt));
+                Connection curConnection = mConnectionSystem.getConnection(gatt);
                 try {
                     curConnection.setConnectionHERAMatrix(myHera.getReachabilityMatrix());
                 } catch(IOException e) {
                     e.fillInStackTrace();
                 }
-                mConnectionSystem.putConnection(curConnection);
                 connectionStatus.put(gatt.getDevice(), 2);
                 gatt.discoverServices();
             }
@@ -311,7 +309,7 @@ public class BLEHandler {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
             try {
-                Thread.sleep(1000);
+                Thread.sleep(100);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -320,15 +318,14 @@ public class BLEHandler {
             System.out.println("prevSegCount = " + prevSegCount);
             System.out.println("isLast = " + isLast);
             if(isLast == 0) {
-                System.out.println("All " + prevSegCount + 1 + " segments have been transmitted");
+                System.out.println("All " + (prevSegCount + 1) + " segments have been transmitted");
                 DisableConnection(gatt);
                 return;
             }
             BluetoothGattCharacteristic segmentToSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
             segmentToSend.setValue(mConnectionSystem.getToSendFragment(gatt, prevSegCount + 1));
             gatt.writeCharacteristic(segmentToSend);
-            System.out.println("Fragment " + prevSegCount + 1 + " sent");
-
+            System.out.println("Fragment " + (prevSegCount + 1) + " sent");
         }
 
 
