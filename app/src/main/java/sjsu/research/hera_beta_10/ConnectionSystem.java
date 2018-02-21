@@ -14,8 +14,8 @@ import java.util.Map;
  */
 
 public class ConnectionSystem {
-    Map<BluetoothDevice, Connection> deviceConnectionMap;
-    Map<BluetoothGatt, Connection> gattConnectionMap;
+    private Map<BluetoothDevice, Connection> deviceConnectionMap;
+    private Map<BluetoothGatt, Connection> gattConnectionMap;
 
     public ConnectionSystem() {
         deviceConnectionMap = new HashMap<>();

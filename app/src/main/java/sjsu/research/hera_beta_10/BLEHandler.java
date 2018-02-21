@@ -3,12 +3,14 @@ package sjsu.research.hera_beta_10;
  * Created by Steven on 2/7/2018.
  * Version 1.0
  */
+
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
@@ -24,11 +26,10 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
-import android.widget.Button;
-import android.widget.TextView;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,17 +61,11 @@ public class BLEHandler {
     BluetoothLeAdvertiser mBluetoothLeAdvertiser;
 
     //Gatt
-    BluetoothGatt mBluetoothGatt;
     BluetoothGattServer mBluetoothGattServer;
     BluetoothGattService mBluetoothGattService;
     BluetoothGattCharacteristic mBluetoothGattCharacteristic;
     BluetoothGattCharacteristic mBluetoothGattCharacteristic2;
     int _mtu = 400;
-    Button Connect;
-    Button Disconnect;
-    TextView ConnectionState;
-    TextView myDevice;
-    TextView connectedDevices;
     Boolean connecting = false;
 
     ConnectionSystem mConnectionSystem;
@@ -89,6 +84,62 @@ public class BLEHandler {
         System.out.println("BLE Handler Initiated");
 
     }
+
+    /**
+     * Bluetooth Low Energy Server
+     */
+    public void startServer(){
+        BluetoothGattServer mBluetoothGattServer = mBluetoothManager.openGattServer(sContext, mBluetoothGattServerCallback);
+        BluetoothGattService mBluetoothGattService = new BluetoothGattService(mServiceUUID, 0);
+        BluetoothGattCharacteristic mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_WRITE,BluetoothGattCharacteristic.PERMISSION_WRITE);
+        mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
+        mBluetoothGattServer.addService(mBluetoothGattService);
+    }
+
+    private BluetoothGattServerCallback mBluetoothGattServerCallback = new BluetoothGattServerCallback() {
+        @Override
+        public synchronized void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
+            super.onConnectionStateChange(device, status, newState);
+            Connection curConnection;
+            if (newState == BluetoothGatt.STATE_CONNECTED) {
+                if (mConnectionSystem.getConnection(device) != null) {
+                    curConnection = mConnectionSystem.getConnection(device);
+                    curConnection.setDevice(device);
+                }
+                else {
+                    curConnection = new Connection(device);
+                    mConnectionSystem.putConnection(curConnection);
+                }
+            }
+            if (status == BluetoothGatt.STATE_DISCONNECTED) {
+                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(device));
+            }
+        }
+
+        @Override
+        public synchronized void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+            super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
+            System.out.println("Character write request received: " + ConnectionSystem.bytesToHex(value));
+            Connection curConnection = mConnectionSystem.getConnection(device);
+            if (characteristic.getUuid().equals(mCharUUID)) {
+                curConnection.writeToCache(Arrays.copyOfRange(value, 2, value.length));
+                System.out.println("Current cache contains: " + ConnectionSystem.bytesToHex(mConnectionSystem.getConnection(device).getCache().toByteArray()));
+                if (value[1] == 0) {
+                    curConnection.setNeighborHERAMatrix();
+                    curConnection.resetCache();
+                }
+                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
+            }
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothDevice device, int mtu) {
+            super.onMtuChanged(device, mtu);
+            Connection curConnection = mConnectionSystem.getConnection(device);
+            curConnection.setServerMTU(mtu);
+            System.out.println("Server MTU with " + device.getAddress().toString() + " changed to " + mtu);
+        }
+    };
 
     /**
      * Prepares beacon's advertise data field
@@ -149,7 +200,6 @@ public class BLEHandler {
         mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback);
         System.out.println("Beacon advertisement ended");
     }
-
 
     private List<ScanFilter> prepareScanFilterList(){
         ScanFilter.Builder mScanFilterBuilder = new ScanFilter.Builder();
@@ -255,7 +305,7 @@ public class BLEHandler {
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             super.onMtuChanged(gatt, mtu, status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                mConnectionSystem.getConnection(gatt).setMTU(mtu);
+                mConnectionSystem.getConnection(gatt).setClientMTU(mtu);
                 System.out.println("MTU is changed to " + mtu);
                 BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
                 toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt, 0));
@@ -287,5 +337,7 @@ public class BLEHandler {
             System.out.println("Fragment " + prevSegCount + 1 + " sent");
             DisableConnection(gatt);
         }
+
+
     };
 }
