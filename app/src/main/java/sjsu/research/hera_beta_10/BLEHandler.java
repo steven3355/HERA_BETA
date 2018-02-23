@@ -92,6 +92,21 @@ public class BLEHandler {
         mBluetoothGattServer.addService(mBluetoothGattService);
     }
 
+    public void prepareToSendMessage(Connection curConnection) {
+        String dest = curConnection.getOneToSendDestination();
+        curConnection.setMessage(mMessageSystem.getMessage(dest).getByte());
+    }
+
+    public void sendMessage(Connection curConnection) {
+        if (curConnection.getGatt() != null) {
+            BluetoothGatt gatt = curConnection.getGatt();
+            prepareToSendMessage(curConnection);
+            BluetoothGattCharacteristic toSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
+            toSend.setValue(mConnectionSystem.getToSendFragment(gatt, 0));
+            gatt.writeCharacteristic(toSend);
+        }
+    }
+
     private BluetoothGattServerCallback mBluetoothGattServerCallback = new BluetoothGattServerCallback() {
         @Override
         public synchronized void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
@@ -120,6 +135,7 @@ public class BLEHandler {
                     curConnection.setNeighborHERAMatrix();
                     curConnection.resetCache();
                     mMessageSystem.buildToSnedMessageQueue(curConnection);
+                    sendMessage(curConnection);
                 }
                 mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
             }

@@ -26,7 +26,7 @@ public class Connection {
     private int _Datasize;
     private Map<String, List<Double>> _myHERAMatrix;
     private Map<String, List<Double>> _neighborHERAMatrix;
-    private byte[] _matrixByteArray;
+    private byte[] _messageByteArray;
     private int _totalSegmentCount;
     private Queue<String> _toSendQueue;
 
@@ -106,7 +106,7 @@ public class Connection {
     public void setClientMTU(int mtu) {
         _clientMTU = 300;
         _Datasize = _clientMTU - 2;
-        _totalSegmentCount = _matrixByteArray.length / _Datasize + (_matrixByteArray.length % _Datasize == 0 ? 0 : 1);
+        _totalSegmentCount = _messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
     }
 
     public void setServerMTU(int mtu) {
@@ -130,11 +130,15 @@ public class Connection {
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(map);
         _Datasize = _clientMTU - 2;
-        _matrixByteArray = bos.toByteArray();
-        System.out.println("Successfully converted Map to Byte Array, size : " + _matrixByteArray.length);
+        _messageByteArray = bos.toByteArray();
+        System.out.println("Successfully converted Map to Byte Array, size : " + _messageByteArray.length);
         oos.close();
-        _totalSegmentCount = _matrixByteArray.length / _Datasize + (_matrixByteArray.length % _Datasize == 0 ? 0 : 1);
-        System.out.println("The Flattened Map is: " + ConnectionSystem.bytesToHex(_matrixByteArray));
+        _totalSegmentCount = +_messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
+        System.out.println("The Flattened Map is: " + ConnectionSystem.bytesToHex(_messageByteArray));
+    }
+    public void setMessage(byte[] messageArray) {
+        _messageByteArray = messageArray;
+        _totalSegmentCount = +_messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
     }
     public Map<String, List<Double>> getMyHERAMatrix() {
         return _myHERAMatrix;
@@ -144,8 +148,8 @@ public class Connection {
         return _totalSegmentCount;
     }
 
-    public byte[] getMatrixByteArray() {
-        return _matrixByteArray;
+    public byte[] getMessageByteArray() {
+        return _messageByteArray;
     }
 
     public Queue<String> getToSendQueue() {

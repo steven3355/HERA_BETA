@@ -11,9 +11,11 @@ public class Message {
         _data = data;
     }
 
-    public byte[] getMessage() {
+    public byte[] getByte() {
         return _data;
     }
 
-
+    public String getDestination() {
+        return _destination;
+    }
 }

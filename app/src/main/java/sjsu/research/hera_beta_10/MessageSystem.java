@@ -1,29 +1,31 @@
 package sjsu.research.hera_beta_10;
 
-import android.bluetooth.BluetoothDevice;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * Created by Steven on 2/7/2018.
  */
 
 public class MessageSystem {
-    private Map<String, List<Message>> messageMap;
+    private Map<String, Queue<Message>> messageMap;
 
     MessageSystem() {
         messageMap = new HashMap<>();
     }
-    List<Message> getMessage(BluetoothDevice device) {
-        return messageMap.get(device.getAddress().toString());
+    Queue<Message> getMessageQueue(String dest) {
+        return messageMap.get(dest);
     }
     void putMessage(byte[] input) {
 
     }
 
+    Message getMessage(String dest) {
+        return getMessageQueue(dest).poll();
+    }
     List<String> getMessageDestinationList() {
         return new ArrayList<>(messageMap.keySet());
     }

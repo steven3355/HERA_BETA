@@ -32,9 +32,9 @@ public class ConnectionSystem {
         temp.add((byte) fragmentSeq);
         temp.add((byte) (fragmentSeq == curConnectionSegmentCount - 1 ? 0 : 1));
         for (int i = 0; i < curConnectionDataSize; i++) {
-            if (fragmentSeq*curConnectionDataSize + i >= curConnection.getMatrixByteArray().length)
+            if (fragmentSeq*curConnectionDataSize + i >= curConnection.getMessageByteArray().length)
                 break;
-            temp.add(curConnection.getMatrixByteArray()[fragmentSeq*curConnectionDataSize + i]);
+            temp.add(curConnection.getMessageByteArray()[fragmentSeq*curConnectionDataSize + i]);
         }
         byte[] toSend = new byte[temp.size()];
         for (int i = 0; i < temp.size(); i++) {
