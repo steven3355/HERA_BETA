@@ -26,8 +26,9 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
+import android.provider.Settings;
+import android.util.Log;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,6 +41,7 @@ import java.util.UUID;
  * Handler class used interface with Bluetooth Low Energy
  */
 public class BLEHandler {
+    private String TAG = "BLEHandler";
     private Context sContext;
     //API
     BluetoothManager mBluetoothManager;
@@ -77,7 +79,7 @@ public class BLEHandler {
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
         mConnectionSystem = new ConnectionSystem();
-        System.out.println("BLE Handler Initiated");
+        Log.d("BLEHandler", "Bluetooth Low Energy Handler constructed.");
         mMessageSystem = new MessageSystem();
     }
 
@@ -92,34 +94,49 @@ public class BLEHandler {
         mBluetoothGattServer.addService(mBluetoothGattService);
     }
 
-    public void prepareToSendMessage(Connection curConnection) {
+    /**
+     * Prepares one message to send for curConnection using the message system message queue
+     * @param curConnection
+     */
+    private void prepareToSendMessage(Connection curConnection) {
         String dest = curConnection.getOneToSendDestination();
         curConnection.setMessage(mMessageSystem.getMessage(dest).getByte());
     }
 
-    public void sendMessage(Connection curConnection) {
-        if (curConnection.getGatt() != null) {
-            BluetoothGatt gatt = curConnection.getGatt();
+    /**
+     * Starts the send message process
+     * @param curConnection
+     */
+    private void sendMessage(Connection curConnection) {
+        BluetoothGatt gatt = curConnection.getGatt();
+        if (gatt != null) {
             prepareToSendMessage(curConnection);
             BluetoothGattCharacteristic toSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
-            toSend.setValue(mConnectionSystem.getToSendFragment(gatt, 0));
+            toSend.setValue(mConnectionSystem.getToSendFragment(gatt, 0, ConnectionSystem.DATA_TYPE_MESSAGE));
             gatt.writeCharacteristic(toSend);
         }
     }
 
+    /**
+     * GattServer's callback function
+     */
     private BluetoothGattServerCallback mBluetoothGattServerCallback = new BluetoothGattServerCallback() {
+        String TAG = "BluetoothGattServerCallBack";
         @Override
         public synchronized void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
+
             Connection curConnection;
             if (newState == BluetoothGatt.STATE_CONNECTED) {
-                curConnection = new Connection(device);
-                System.out.println("New server side connection formed with " + curConnection.getDevice().getAddress().toString());
+                curConnection = mConnectionSystem.createConnection(device);
+//                curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
                 mConnectionSystem.putConnection(curConnection);
-                System.out.println("Connection formed with " + device.getAddress().toString());
+                Log.d(TAG, "New server side connection formed with " + curConnection.getDevice().getAddress().toString());
+
             }
             if (status == BluetoothGatt.STATE_DISCONNECTED) {
-                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(device));
+//                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(device));
+                Log.d(TAG, device.getAddress().toString() + " disconnected");
             }
         }
 
@@ -128,14 +145,26 @@ public class BLEHandler {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
             System.out.println("Character write request received: " + ConnectionSystem.bytesToHex(value));
             Connection curConnection = mConnectionSystem.getConnection(device);
+            int dataType = value[2];
+            int isLast = value[1];
             if (characteristic.getUuid().equals(mCharUUID)) {
-                curConnection.writeToCache(Arrays.copyOfRange(value, 2, value.length));
-                System.out.println("Current cache contains: " + ConnectionSystem.bytesToHex(mConnectionSystem.getConnection(device).getCache().toByteArray()));
-                if (value[1] == 0) {
-                    curConnection.setNeighborHERAMatrix();
-                    curConnection.resetCache();
-                    mMessageSystem.buildToSnedMessageQueue(curConnection);
-                    sendMessage(curConnection);
+                curConnection.writeToCache(Arrays.copyOfRange(value, curConnection.getOverHeadSize(), value.length));
+//                System.out.println("Current cache contains: " + ConnectionSystem.bytesToHex(mConnectionSystem.getConnection(device).getCache().toByteArray()));
+                if (isLast == 0) {
+                    if (dataType == ConnectionSystem.DATA_TYPE_NAME) {
+                        curConnection.setNeighborAndroidID();
+                        curConnection.resetCache();
+                        Log.d(TAG, "Android ID: " + curConnection.getNeighborAndroidID() + " received.");
+                    }
+                    else if (dataType == ConnectionSystem.DATA_TYPE_MATRIX) {
+                        curConnection.setNeighborHERAMatrix();
+                        curConnection.resetCache();
+//                        mMessageSystem.buildToSendMessageQueue(curConnection);
+//                        myHera.updateDirectHop();
+//                        myHera.updateTransitiveHops(,curConnection.getNeighborHERAMatrix());
+//                        sendMessage(curConnection);
+                    }
+
                 }
                 mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
             }
@@ -146,7 +175,7 @@ public class BLEHandler {
             super.onMtuChanged(device, mtu);
             Connection curConnection = mConnectionSystem.getConnection(device);
 //            curConnection.setServerMTU(mtu);
-            System.out.println("Server MTU with " + device.getAddress().toString() + " changed to " + mtu);
+            Log.d(TAG, "Server MTU with " + device.getAddress().toString() + " changed to " + mtu);
         }
     };
 
@@ -181,9 +210,11 @@ public class BLEHandler {
      * AdvertiseCallBack (Do nothing for now)
      */
     private AdvertiseCallback mAdvertiseCallback = new AdvertiseCallback() {
+        String TAG = "AdvertiseCallBack";
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
+
         }
     };
 
@@ -197,7 +228,7 @@ public class BLEHandler {
         AdvertiseData mAdvertiseData = prepareAdvertiseData("PlzWork");
         AdvertiseSettings mAdvertiseSettings = prepareAdvertiseSettings();
         mBluetoothLeAdvertiser.startAdvertising(mAdvertiseSettings, mAdvertiseData, mAdvertiseCallback);
-        System.out.println("Beacon advertisement started");
+        Log.d(TAG, "Beacon advertisement started");
     }
 
     /**
@@ -207,7 +238,7 @@ public class BLEHandler {
      */
     public void stopAdvertise() {
         mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback);
-        System.out.println("Beacon advertisement ended");
+        Log.d(TAG, "Beacon advertisement ended");
     }
 
     private List<ScanFilter> prepareScanFilterList(){
@@ -218,28 +249,32 @@ public class BLEHandler {
         mScanFilterBuilder2.setServiceUuid(BeanServiceUUID, BeanServiceMask);
         filterList.add(mScanFilterBuilder2.build());
         filterList.add(mScanFilterBuilder.build());
+        Log.d(TAG, "Scan filter prepared");
         return filterList;
     }
 
     private ScanSettings prepareScanSetting(){
         ScanSettings.Builder mScanSettingsBuilder = new ScanSettings.Builder();
         mScanSettingsBuilder.setScanMode(1);
+        Log.d(TAG, "Scan Setting prepared");
         return mScanSettingsBuilder.build();
     }
     public void startScan() {
         List<ScanFilter> mFilterList = prepareScanFilterList();
         ScanSettings mScanSettings = prepareScanSetting();
         mBluetoothLeScanner.startScan(mFilterList, mScanSettings, mScanCallback);
+        Log.d(TAG, "Scan started");
     }
     public void stopScan() {
         mBluetoothLeScanner.stopScan(mScanCallback);
     }
     private ScanCallback mScanCallback = new ScanCallback() {
+        String TAG = "ScanCallBack";
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             final String address = result.getDevice().getAddress();
             Handler mainHandler = new Handler(Looper.getMainLooper());
-            System.out.println("Beacon received from: " + result.getDevice().getName());
+            Log.d(TAG,"Beacon received from: " + result.getDevice().getName());
             Runnable myRunnable = new Runnable() {
                 @Override
                 public void run() {
@@ -251,35 +286,48 @@ public class BLEHandler {
             mainHandler.post(myRunnable);
         }
     };
+
     private synchronized void EstablishConnection(BluetoothDevice device){
         connecting = true;
         connectionStatus.put(device, 1);
-        System.out.println("Connecting to " + device.getAddress() + "\nCurrent GATT connection : " + mBluetoothManager.getConnectedDevices(7).size());
+        Log.d(TAG, "Connecting to " + device.getAddress());
         device.connectGatt(sContext, false, mGattCallback, 2);
     }
     private void DisableConnection(BluetoothGatt gatt){
         gatt.close();
-        System.out.println("Device " + gatt.getDevice().getAddress() + " disconnected.");
+        Log.d(TAG, "Device " + gatt.getDevice().getAddress() + " disconnected.");
     }
 
+    private void sendAndroidID(BluetoothGatt gatt) {
+        Connection curConnection = mConnectionSystem.getConnection(gatt);
+        curConnection.setAndroidID(Settings.Secure.getString(sContext.getContentResolver(),
+                Settings.Secure.ANDROID_ID));
+        BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
+        toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt,0, ConnectionSystem.DATA_TYPE_NAME));
+        gatt.writeCharacteristic(toSendValue);
+    }
+
+    private void sendHERAMatrix(BluetoothGatt gatt) {
+        Connection curConnection = mConnectionSystem.getConnection(gatt);
+        curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
+        BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
+        toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt,0, ConnectionSystem.DATA_TYPE_MATRIX));
+        gatt.writeCharacteristic(toSendValue);
+    }
     private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+        String TAG = "BluetoothGattCallBack";
         @Override
         public synchronized void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
             connecting = false;
             if(newState == BluetoothGatt.STATE_CONNECTED){
-                mConnectionSystem.putConnection(new Connection(gatt));
-                Connection curConnection = mConnectionSystem.getConnection(gatt);
-                try {
-                    curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
-                } catch(IOException e) {
-                    e.fillInStackTrace();
-                }
+                mConnectionSystem.createConnection(gatt);
+                Log.d(TAG, "Connection formed with: " + mConnectionSystem.getConnection(gatt).getAddress());
                 connectionStatus.put(gatt.getDevice(), 2);
                 gatt.discoverServices();
             }
             else if(newState == BluetoothGatt.STATE_DISCONNECTED){
-                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(gatt));
+//                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(gatt));
                 connectionStatus.put(gatt.getDevice(), 0);
                 gatt.close();
             }
@@ -298,14 +346,13 @@ public class BLEHandler {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            System.out.println("Service discovered");
-            System.out.println(gatt.getServices());
+            Log.d(TAG,"Service discovered");
             if (mConnectionSystem.isBean(gatt)) {
                 gatt.readCharacteristic(gatt.getService(UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE")).getCharacteristic(UUID.fromString("A495FF21-C5B1-4B44-B512-1370F02D74DE")));
             }
             else {
                 gatt.requestMtu(_mtu);
-                System.out.println("Requesting mtu change of " + _mtu);
+                Log.d(TAG, "Requesting mtu change of " + _mtu);
             }
         }
 
@@ -313,36 +360,30 @@ public class BLEHandler {
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             super.onMtuChanged(gatt, mtu, status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "MTU changed with " + gatt.getDevice() + " to " + mtu);
                 mConnectionSystem.getConnection(gatt).setClientMTU(mtu);
-                System.out.println("MTU is changed to " + mtu);
-                BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
-                toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt, 0));
-                System.out.println(toSendValue);
-                gatt.writeCharacteristic(toSendValue);
-                System.out.println("Initial segment sent");
+                sendAndroidID(gatt);
             }
         }
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+
             int prevSegCount = characteristic.getValue()[0];
             int isLast = characteristic.getValue()[1];
-            System.out.println("prevSegCount = " + prevSegCount);
-            System.out.println("isLast = " + isLast);
+            int dataType = characteristic.getValue()[2];
             if(isLast == 0) {
-                System.out.println("All " + (prevSegCount + 1) + " segments have been transmitted");
+                Log.d(TAG, "All " + (prevSegCount + 1) + " segments have been transmitted");
+                if (dataType == 0) {
+                    sendHERAMatrix(gatt);
+                }
                 return;
             }
             BluetoothGattCharacteristic segmentToSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
-            segmentToSend.setValue(mConnectionSystem.getToSendFragment(gatt, prevSegCount + 1));
+            segmentToSend.setValue(mConnectionSystem.getToSendFragment(gatt, prevSegCount + 1, ConnectionSystem.DATA_TYPE_MATRIX));
             gatt.writeCharacteristic(segmentToSend);
-            System.out.println("Fragment " + (prevSegCount + 1) + " sent");
+            Log.d(TAG, "Fragment " + (prevSegCount + 1) + " sent");
         }
     };
 }

@@ -18,9 +18,10 @@ public class HERA implements Serializable {
     private double alpha = 0.98;
     private long lastUpdateTime;
     private int timeUnitIndex = 1;
-    private Map<String, List<Double>> reachabilityMatrix = new HashMap<>();
+    private Map<String, List<Double>> reachabilityMatrix;
     private String self;
     public HERA() {
+        reachabilityMatrix = new HashMap<>();
         reachabilityMatrix.put("abc", new ArrayList<Double>(3){});
         reachabilityMatrix.get("abc").add(1.0);
     }
@@ -34,12 +35,13 @@ public class HERA implements Serializable {
         gamma = weight;
         timeUnitIndex = timeUnit;
         self = selfAddress;
+        reachabilityMatrix = new HashMap<>();
     }
     public Map<String, List<Double>> getReachabilityMatrix() {
         return reachabilityMatrix;
     }
     public double getReachability(String destination) {
-        ageMatrix();
+//        ageMatrix();
         double weightedSum = 0;
         if (!reachabilityMatrix.containsKey(destination)) {
             reachabilityMatrix.put(destination, new ArrayList<Double>(H + 1));

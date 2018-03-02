@@ -15,14 +15,16 @@ import java.util.UUID;
  */
 
 public class ConnectionSystem {
-    private Map<BluetoothDevice, Connection> deviceConnectionMap;
-    private Map<BluetoothGatt, Connection> gattConnectionMap;
+    private Map<String, Connection> addressConnectionMap;
+    public static final int DATA_TYPE_NAME = 0;
+    public static final int DATA_TYPE_MATRIX = 1;
+    public static final int DATA_TYPE_MESSAGE = 2;
 
     public ConnectionSystem() {
-        deviceConnectionMap = new HashMap<>();
-        gattConnectionMap = new HashMap<>();
+        addressConnectionMap = new HashMap<>();
     }
-    public byte[] getToSendFragment(BluetoothGatt gatt, int fragmentSeq) {
+
+    public byte[] getToSendFragment(BluetoothGatt gatt, int fragmentSeq, int dataType) {
         Connection curConnection = getConnection(gatt);
         int curConnectionDataSize = curConnection.getDatasize();
         int curConnectionSegmentCount = curConnection.getTotalSegmentCount();
@@ -31,6 +33,7 @@ public class ConnectionSystem {
         List<Byte> temp = new ArrayList<>();
         temp.add((byte) fragmentSeq);
         temp.add((byte) (fragmentSeq == curConnectionSegmentCount - 1 ? 0 : 1));
+        temp.add((byte) dataType);
         for (int i = 0; i < curConnectionDataSize; i++) {
             if (fragmentSeq*curConnectionDataSize + i >= curConnection.getMessageByteArray().length)
                 break;
@@ -45,31 +48,49 @@ public class ConnectionSystem {
     }
 
     public Connection getConnection(BluetoothGatt gatt) {
-        if (gattConnectionMap.containsKey(gatt))
-            return gattConnectionMap.get(gatt);
-        else
-            return gattConnectionMap.put(gatt, new Connection(gatt));
+        if (addressConnectionMap.containsKey(gatt.getDevice().getAddress()))
+            return addressConnectionMap.get(gatt.getDevice().getAddress());
+        else {
+            addressConnectionMap.put(gatt.getDevice().getAddress(), new Connection(gatt));
+            return addressConnectionMap.get(gatt.getDevice().getAddress());
+        }
     }
     public Connection getConnection(BluetoothDevice device) {
-        if (deviceConnectionMap.containsKey(device))
-            return deviceConnectionMap.get(device);
-        else
-            return deviceConnectionMap.put(device, new Connection(device));
+        if (addressConnectionMap.containsKey(device.getAddress()))
+            return addressConnectionMap.get(device.getAddress());
+        else {
+            addressConnectionMap.put(device.getAddress(), new Connection(device));
+            return addressConnectionMap.get(device.getAddress());
+        }
+
     }
     public void putConnection(Connection connection) {
-        if (!deviceConnectionMap.containsKey(connection.getDevice()))
-            deviceConnectionMap.put(connection.getDevice(), connection);
-        if (!gattConnectionMap.containsKey(connection.getGatt()) && connection.getGatt() != null)
-            gattConnectionMap.put(connection.getGatt(), connection);
+        addressConnectionMap.put(connection.getAddress(), connection);
+    }
+    public Connection createConnection(BluetoothGatt gatt) {
+        if (!addressConnectionMap.containsKey(gatt.getDevice().getAddress()) || addressConnectionMap.get(gatt.getDevice().getAddress()) == null) {
+            addressConnectionMap.put(gatt.getDevice().getAddress(), new Connection(gatt));
+        }
+        else {
+            addressConnectionMap.get(gatt.getDevice().getAddress()).setGatt(gatt);
+        }
+        return addressConnectionMap.get(gatt.getDevice().getAddress());
+    }
+    public Connection createConnection(BluetoothDevice device) {
+        if (!addressConnectionMap.containsKey(device.getAddress()) || addressConnectionMap.get(device.getAddress()) == null) {
+            addressConnectionMap.put(device.getAddress(), new Connection(device));
+        }
+        else {
+            addressConnectionMap.get(device.getAddress()).setDevice(device);
+        }
+        return addressConnectionMap.get(device.getAddress());
     }
     public void removeConnection(Connection connection) {
         if (connection == null) {
             return;
         }
-        if (deviceConnectionMap.containsKey(connection.getDevice()))
-            deviceConnectionMap.remove(connection.getDevice());
-        if (gattConnectionMap.containsKey(connection.getGatt()))
-            gattConnectionMap.remove(connection.getGatt());
+        if (addressConnectionMap.containsKey(connection.getDevice().getAddress()))
+            addressConnectionMap.remove(connection.getDevice().getAddress());
     }
     public boolean isBean(BluetoothGatt gatt) {
         return gatt.getService(UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE")) != null;
