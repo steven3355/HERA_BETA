@@ -16,6 +16,7 @@ import java.util.UUID;
 
 public class ConnectionSystem {
     private Map<String, Connection> addressConnectionMap;
+    private Map<String, Connection> androidIDConnectionMap;
     public static final int DATA_TYPE_NAME = 0;
     public static final int DATA_TYPE_MATRIX = 1;
     public static final int DATA_TYPE_MESSAGE = 2;

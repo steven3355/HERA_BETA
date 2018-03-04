@@ -154,6 +154,7 @@ public class BLEHandler {
                     if (dataType == ConnectionSystem.DATA_TYPE_NAME) {
                         curConnection.setNeighborAndroidID();
                         curConnection.resetCache();
+
                         Log.d(TAG, "Android ID: " + curConnection.getNeighborAndroidID() + " received.");
                     }
                     else if (dataType == ConnectionSystem.DATA_TYPE_MATRIX) {

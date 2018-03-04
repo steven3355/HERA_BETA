@@ -40,14 +40,26 @@ public class HERA implements Serializable {
     public Map<String, List<Double>> getReachabilityMatrix() {
         return reachabilityMatrix;
     }
-    public double getReachability(String destination) {
+    public List<Double> getHopsReachability(String dest) {
+        if (!reachabilityMatrix.containsKey(dest)) {
+            reachabilityMatrix.put(dest, new ArrayList<Double>(H + 1));
+        }
+        return reachabilityMatrix.get(dest);
+    }
+    public double getHopReachability(String dest, int hop) {
+        if (!reachabilityMatrix.containsKey(dest)) {
+            reachabilityMatrix.put(dest, new ArrayList<Double>(H + 1));
+        }
+        return reachabilityMatrix.get(dest).get(hop);
+    }
+    public double getReachability(String dest) {
 //        ageMatrix();
         double weightedSum = 0;
-        if (!reachabilityMatrix.containsKey(destination)) {
-            reachabilityMatrix.put(destination, new ArrayList<Double>(H + 1));
+        if (!reachabilityMatrix.containsKey(dest)) {
+            reachabilityMatrix.put(dest, new ArrayList<Double>(H + 1));
             return 0;
         }
-        List<Double> hopReachabilities = reachabilityMatrix.get(destination);
+        List<Double> hopReachabilities = reachabilityMatrix.get(dest);
         for (int i = 0; i <= H; i++) {
             weightedSum += gamma[i] * hopReachabilities.get(i);
         }
@@ -65,7 +77,20 @@ public class HERA implements Serializable {
         }
     }
     public void updateTransitiveHops(String neighbor, Map<String, List<Double>> neighborMap) {
-
+        for(Map.Entry<String, List<Double>> entry : neighborMap.entrySet()) {
+            if (entry.getKey() == self) {
+                continue;
+            }
+            if (!reachabilityMatrix.containsKey(entry.getKey())) {
+                reachabilityMatrix.put(entry.getKey(), new ArrayList<Double>(H + 1));
+            }
+            List<Double> updateHopList = reachabilityMatrix.get(entry.getKey());
+            for (int h = 1; h < H; h++) {
+                double delta = beta[h] * entry.getValue().get(h - 1);
+                updateHopList.set(h, updateHopList.get(h) + delta);
+            }
+            reachabilityMatrix.put(entry.getKey(), updateHopList);
+        }
     }
     private void ageMatrix() {
         long timeDiff = System.currentTimeMillis() - lastUpdateTime / TimeUnit.SECONDS.toMillis(1) / timeUnitIndex;
