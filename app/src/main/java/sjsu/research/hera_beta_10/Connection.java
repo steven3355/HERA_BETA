@@ -28,12 +28,13 @@ public class Connection {
     private int _Datasize;
     private Map<String, List<Double>> _myHERAMatrix;
     private Map<String, List<Double>> _neighborHERAMatrix;
-    private byte[] _messageByteArray;
+    private byte[] toSendPacket;
     private int _totalSegmentCount;
     private Queue<String> _toSendQueue;
     private static String TAG = "Connection";
-    private int connectionOverhead = 3;
+    private int _connectionOverhead = 3;
     private String neighborAndroidID;
+
     public Connection(BluetoothGatt gatt) {
         _transmitterGatt = gatt;
         _device = gatt.getDevice();
@@ -41,6 +42,7 @@ public class Connection {
         _cache = new ByteArrayOutputStream();
         _toSendQueue = new LinkedList<>();
         _clientMTU = 20;
+        _Datasize = _clientMTU - _connectionOverhead;
     }
     public Connection(BluetoothDevice device) {
         _device = device;
@@ -48,6 +50,11 @@ public class Connection {
         _cache = new ByteArrayOutputStream();
         _toSendQueue = new LinkedList<>();
         _serverMTU = 20;
+        _Datasize = _serverMTU - _connectionOverhead;
+    }
+
+    public int getOverHeadSize() {
+        return _connectionOverhead;
     }
 
     public void setNeighborAndroidID() {
@@ -56,6 +63,7 @@ public class Connection {
     public String getNeighborAndroidID() {
         return neighborAndroidID;
     }
+
     public void writeToCache(byte[] input) {
         try {
             _cache.write(input);
@@ -63,7 +71,8 @@ public class Connection {
             e.fillInStackTrace();
         }
     }
-    public void setNeighborHERAMatrix() {
+
+    public void buildNeighborHERAMatrix() {
         ObjectInputStream input = null;
         try {
             byte[] cacheByteArr = _cache.toByteArray();
@@ -75,6 +84,7 @@ public class Connection {
             System.out.println("Reconstruct map exception" + e.fillInStackTrace());
         }
     }
+
     public Map<String, List<Double>> getNeighborHERAMatrix() {
         return _neighborHERAMatrix;
     }
@@ -99,13 +109,17 @@ public class Connection {
         return _device;
     }
 
-    public ByteArrayOutputStream getCache() {
-        return _cache;
+    public byte[] getCacheByteArray() {
+        return _cache.toByteArray();
+    }
+
+    public void buildMessage(MessageSystem mMessageSystem) {
+        mMessageSystem.putMessage(getCacheByteArray());
     }
 
     public void setClientMTU(int mtu) {
         this._clientMTU = 300;
-        this._Datasize = _clientMTU - connectionOverhead;
+        this._Datasize = _clientMTU - _connectionOverhead;
     }
 
     public void setServerMTU(int mtu) {
@@ -115,6 +129,7 @@ public class Connection {
     public int getServerMTU() {
         return _serverMTU;
     }
+
     public int getClientMTU() {
         return _clientMTU;
     }
@@ -123,9 +138,9 @@ public class Connection {
         return _Datasize;
     }
 
-    public void setAndroidID (String androidID){
-        _messageByteArray = androidID.getBytes();
-        _totalSegmentCount = +_messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
+    public void setMyAndroidID (String androidID){
+        toSendPacket = androidID.getBytes();
+        _totalSegmentCount = +toSendPacket.length / _Datasize + (toSendPacket.length % _Datasize == 0 ? 0 : 1);
     }
     public void setMyHERAMatrix (Map<String, List<Double>> map)  {
         try {
@@ -133,18 +148,18 @@ public class Connection {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(map);
-        _messageByteArray = bos.toByteArray();
-        Log.d(TAG, "Successfully converted Map to Byte Array, size : " + _messageByteArray.length);
+        toSendPacket = bos.toByteArray();
+        Log.d(TAG, "Successfully converted Map to Byte Array, size : " + toSendPacket.length);
         oos.close();
-        _totalSegmentCount = _messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
+        _totalSegmentCount = toSendPacket.length / _Datasize + (toSendPacket.length % _Datasize == 0 ? 0 : 1);
         } catch (IOException e) {
             e.fillInStackTrace();
         }
-//        System.out.println("The Flattened Map is: " + ConnectionSystem.bytesToHex(_messageByteArray));
+//        System.out.println("The Flattened Map is: " + ConnectionSystem.bytesToHex(toSendPacket));
     }
-    public void setMessage(byte[] messageArray) {
-        _messageByteArray = messageArray;
-        _totalSegmentCount = +_messageByteArray.length / _Datasize + (_messageByteArray.length % _Datasize == 0 ? 0 : 1);
+    public void setCurrentToSendPacket(byte[] data) {
+        toSendPacket = data;
+        _totalSegmentCount = +toSendPacket.length / _Datasize + (toSendPacket.length % _Datasize == 0 ? 0 : 1);
     }
     public Map<String, List<Double>> getMyHERAMatrix() {
         Log.d(TAG, "getMyHERAMatrix: " + _myHERAMatrix);
@@ -155,8 +170,8 @@ public class Connection {
         return _totalSegmentCount;
     }
 
-    public byte[] getMessageByteArray() {
-        return _messageByteArray;
+    public byte[] getToSendPacket() {
+        return toSendPacket;
     }
 
     public Queue<String> getToSendQueue() {
@@ -165,7 +180,6 @@ public class Connection {
 
     public String getOneToSendDestination() {
         return _toSendQueue.poll();
-
     }
 
     public boolean isToSendEmpty() {
@@ -179,10 +193,9 @@ public class Connection {
     public void setAddres(String addres) {
         _address = addres;
     }
+
     public String getAddress() {
         return _address;
     }
-    public int getOverHeadSize() {
-        return connectionOverhead;
-    }
+
 }

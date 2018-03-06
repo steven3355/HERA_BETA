@@ -2,6 +2,7 @@ package sjsu.research.hera_beta_10;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,7 +17,7 @@ import java.util.UUID;
 
 public class ConnectionSystem {
     private Map<String, Connection> addressConnectionMap;
-    private Map<String, Connection> androidIDConnectionMap;
+    private String TAG = "ConnectionSystem";
     public static final int DATA_TYPE_NAME = 0;
     public static final int DATA_TYPE_MATRIX = 1;
     public static final int DATA_TYPE_MESSAGE = 2;
@@ -29,22 +30,20 @@ public class ConnectionSystem {
         Connection curConnection = getConnection(gatt);
         int curConnectionDataSize = curConnection.getDatasize();
         int curConnectionSegmentCount = curConnection.getTotalSegmentCount();
-        System.out.println("ConnectionDataSize is " + curConnectionDataSize);
-        System.out.println("ConnectionSegmentCount is " + curConnectionSegmentCount);
         List<Byte> temp = new ArrayList<>();
         temp.add((byte) fragmentSeq);
         temp.add((byte) (fragmentSeq == curConnectionSegmentCount - 1 ? 0 : 1));
         temp.add((byte) dataType);
         for (int i = 0; i < curConnectionDataSize; i++) {
-            if (fragmentSeq*curConnectionDataSize + i >= curConnection.getMessageByteArray().length)
+            if (fragmentSeq*curConnectionDataSize + i >= curConnection.getToSendPacket().length)
                 break;
-            temp.add(curConnection.getMessageByteArray()[fragmentSeq*curConnectionDataSize + i]);
+            temp.add(curConnection.getToSendPacket()[fragmentSeq*curConnectionDataSize + i]);
         }
         byte[] toSend = new byte[temp.size()];
         for (int i = 0; i < temp.size(); i++) {
             toSend[i] = temp.get(i);
         }
-        System.out.println("Data prepared, sequence: " + fragmentSeq + " Length: " + toSend.length);
+        Log.d(TAG, "toSend fragment prepared");
         return toSend;
     }
 
@@ -106,5 +105,4 @@ public class ConnectionSystem {
         }
         return new String(hexChars);
     }
-
 }
