@@ -18,8 +18,8 @@ public class MessageSystem {
     private static String TAG = "MessageSystem";
     MessageSystem() {
         messageMap = new HashMap<>();
-        messageMap.put("HERA1", new LinkedList<Message>());
-        messageMap.get("HERA1").add(new Message("abcd".getBytes()));
+        messageMap.put("8ab5e5cf2db6867a", new LinkedList<Message>());
+        messageMap.get("8ab5e5cf2db6867a").add(new Message("abcd".getBytes()));
     }
     Queue<Message> getMessageQueue(String dest) {
         return messageMap.get(dest);
@@ -45,7 +45,7 @@ public class MessageSystem {
             double neighborReachability = neighborHera.getReachability(dest);
             System.out.println("My reachability for destionation " + dest + " is " + myReachability);
             System.out.println("Neighbor Reachability is " + neighborReachability);
-            if (neighborReachability > myReachability || curConnection.getDevice().getAddress().toString().equals(dest)) {
+            if (neighborReachability > myReachability || curConnection.getNeighborAndroidID().equals(dest)) {
                 Log.d(TAG, dest + " added to toSendQueue");
                 curConnection.pushToSendQueue(dest);
             }

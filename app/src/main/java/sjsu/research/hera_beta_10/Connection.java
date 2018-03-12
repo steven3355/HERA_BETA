@@ -35,18 +35,18 @@ public class Connection {
     private int _connectionOverhead = 3;
     private String neighborAndroidID;
 
-    public Connection(BluetoothGatt gatt) {
+    public Connection(String androidID, BluetoothGatt gatt) {
         _transmitterGatt = gatt;
         _device = gatt.getDevice();
-        _address = gatt.getDevice().getAddress();
+        neighborAndroidID = androidID;
         _cache = new ByteArrayOutputStream();
         _toSendQueue = new LinkedList<>();
         _clientMTU = 20;
         _Datasize = _clientMTU - _connectionOverhead;
     }
-    public Connection(BluetoothDevice device) {
+    public Connection(String androidID, BluetoothDevice device) {
         _device = device;
-        _address = device.getAddress();
+        neighborAndroidID = androidID;
         _cache = new ByteArrayOutputStream();
         _toSendQueue = new LinkedList<>();
         _serverMTU = 20;
@@ -99,6 +99,7 @@ public class Connection {
 
     public void setGatt(BluetoothGatt gatt) {
         _transmitterGatt = gatt;
+        _device = gatt.getDevice();
     }
 
     public BluetoothGatt getGatt() {
@@ -182,7 +183,7 @@ public class Connection {
         return _toSendQueue.poll();
     }
 
-    public boolean isToSendEmpty() {
+    public boolean isToSendQueueEmpty() {
         return _toSendQueue.isEmpty();
     }
 

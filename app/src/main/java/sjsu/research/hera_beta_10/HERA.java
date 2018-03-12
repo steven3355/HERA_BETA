@@ -30,22 +30,24 @@ public class HERA implements Serializable {
     private String TAG = "HERA";
     public HERA() {
         H = 5;
+        self = MainActivity.android_id;
         reachabilityMatrix = new HashMap<>();
-        reachabilityMatrix.put("abc", new ArrayList<Double>(3){});
+        reachabilityMatrix.put("abc", new ArrayList<Double>(5){});
         reachabilityMatrix.get("abc").add(1.0);
         reachabilityMatrix.get("abc").add(2.0);
         reachabilityMatrix.get("abc").add(3.0);
         reachabilityMatrix.get("abc").add(4.0);
         reachabilityMatrix.get("abc").add(5.0);
-        reachabilityMatrix.get("abc").add(6.0);
+        ageTime = 10;
         matrixAger.scheduleWithFixedDelay(
                 new Runnable() {
                     @Override
                     public void run() {
-                        Log.d(TAG, "Hera matrix aged");
+                        ageMatrix();
+//                        Log.d(TAG, "Hera matrix aged");
                     }
                 }
-                , 0, 5, TimeUnit.SECONDS
+                , 0, ageTime, TimeUnit.SECONDS
         );
     }
     public HERA(Map<String, List<Double>> neighborMatrix) {
@@ -76,24 +78,24 @@ public class HERA implements Serializable {
     }
     public List<Double> getHopsReachability(String dest) {
         if (!reachabilityMatrix.containsKey(dest)) {
-            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H + 1, 0.0)));
+            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H, 0.0)));
         }
         return reachabilityMatrix.get(dest);
     }
     public double getHopReachability(String dest, int hop) {
         if (!reachabilityMatrix.containsKey(dest)) {
-            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H + 1, 0.0)));
+            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H, 0.0)));
         }
         return reachabilityMatrix.get(dest).get(hop);
     }
     public double getReachability(String dest) {
         double weightedSum = 0;
         if (!reachabilityMatrix.containsKey(dest)) {
-            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H + 1, 0.0)));
+            reachabilityMatrix.put(dest, new ArrayList<>(Collections.nCopies(H, 0.0)));
             return 0;
         }
         List<Double> hopReachabilities = reachabilityMatrix.get(dest);
-        for (int i = 0; i <= H; i++) {
+        for (int i = 0; i < H; i++) {
             weightedSum += gamma[i] * hopReachabilities.get(i);
         }
         return weightedSum;
@@ -101,7 +103,7 @@ public class HERA implements Serializable {
 
     public void updateDirectHop(String neighbor) {
         if (!reachabilityMatrix.containsKey(neighbor)) {
-            reachabilityMatrix.put(neighbor, new ArrayList<>(Collections.nCopies(H + 1, 0.0)));
+            reachabilityMatrix.put(neighbor, new ArrayList<>(Collections.nCopies(H, 0.0)));
             reachabilityMatrix.get(neighbor).set(0, beta[0]);
         }
         else {
@@ -110,11 +112,11 @@ public class HERA implements Serializable {
     }
     public void updateTransitiveHops(String neighbor, Map<String, List<Double>> neighborMap) {
         for(Map.Entry<String, List<Double>> entry : neighborMap.entrySet()) {
-            if (entry.getKey() == self) {
+            if (entry.getKey().equals(self)) {
                 continue;
             }
             if (!reachabilityMatrix.containsKey(entry.getKey())) {
-                reachabilityMatrix.put(entry.getKey(), new ArrayList<>(Collections.nCopies(H + 1, 0.0)));
+                reachabilityMatrix.put(entry.getKey(), new ArrayList<>(Collections.nCopies(H, 0.0)));
             }
             List<Double> updateHopList = reachabilityMatrix.get(entry.getKey());
             for (int h = 1; h < H; h++) {
@@ -130,7 +132,9 @@ public class HERA implements Serializable {
             List<Double> curList = entry.getValue();
             for (int i = 0; i < H; i++) {
                 curList.set(i, curList.get(i) * multiplier);
+//                System.out.print(curList.get(i));
             }
+//            System.out.println();
             reachabilityMatrix.put(entry.getKey(), curList);
         }
     }

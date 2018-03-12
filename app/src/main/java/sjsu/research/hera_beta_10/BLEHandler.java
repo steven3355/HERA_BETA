@@ -26,7 +26,6 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
-import android.provider.Settings;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -49,8 +48,11 @@ public class BLEHandler {
     Map<BluetoothDevice, Integer> connectionStatus = new HashMap<>();
     ParcelUuid mServiceUUIDParcel = ParcelUuid.fromString("00001830-0000-1000-8000-00805F9B34FB");
     ParcelUuid mServiceDataUUIDParcel = ParcelUuid.fromString("00009208-0000-1000-8000-00805F9B34FB");
-    UUID mServiceUUID = UUID.fromString("00001830-0000-1000-8000-00805F9B34FB");
+    static UUID mServiceUUID = UUID.fromString("00001830-0000-1000-8000-00805F9B34FB");
     UUID mCharUUID = UUID.fromString("00003000-0000-1000-8000-00805f9b34fb");
+    UUID mAndroidIDCharUUID = UUID.fromString("00003001-0000-1000-8000-00805f9b34fb");
+    UUID BeanScratchServiceUUID = UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE");
+    UUID BeanScratchFirstCharUUID = UUID.fromString("A495FF21-C5B1-4B44-B512-1370F02D74DE");
     ParcelUuid BeanServiceUUID = ParcelUuid.fromString("A495FF10-C5B1-4B44-B512-1370F02D74DE");
     ParcelUuid BeanServiceMask = ParcelUuid.fromString("11111100-0000-0000-0000-000000000000");
 
@@ -68,6 +70,7 @@ public class BLEHandler {
     ConnectionSystem mConnectionSystem;
     HERA myHera;
     MessageSystem mMessageSystem;
+
     /**
      * BLEHandler Constructor
      */
@@ -79,7 +82,7 @@ public class BLEHandler {
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
         mConnectionSystem = new ConnectionSystem();
-        Log.d("BLEHandler", "Bluetooth Low Energy Handler constructed.");
+        Log.d(TAG, "Bluetooth Low Energy Handler constructed.");
         mMessageSystem = new MessageSystem();
     }
 
@@ -90,6 +93,8 @@ public class BLEHandler {
         mBluetoothGattServer = mBluetoothManager.openGattServer(sContext, mBluetoothGattServerCallback);
         BluetoothGattService mBluetoothGattService = new BluetoothGattService(mServiceUUID, 0);
         BluetoothGattCharacteristic mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_WRITE,BluetoothGattCharacteristic.PERMISSION_WRITE);
+        BluetoothGattCharacteristic mAndroidIDCharacteristic = new BluetoothGattCharacteristic(mAndroidIDCharUUID, BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_READ | BluetoothGattCharacteristic.PERMISSION_WRITE);
+        mBluetoothGattService.addCharacteristic(mAndroidIDCharacteristic);
         mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
         mBluetoothGattServer.addService(mBluetoothGattService);
     }
@@ -100,6 +105,7 @@ public class BLEHandler {
      */
     private void prepareToSendMessage(Connection curConnection) {
         String dest = curConnection.getOneToSendDestination();
+        Log.d(TAG, "Preparing to send message for: " + dest);
         curConnection.setCurrentToSendPacket(mMessageSystem.getMessage(dest).getByte());
     }
 
@@ -108,12 +114,28 @@ public class BLEHandler {
      * @param curConnection
      */
     private void sendMessage(Connection curConnection) {
+        String TAG = "toSend";
         BluetoothGatt gatt = curConnection.getGatt();
         if (gatt != null) {
+            Log.d(TAG, "client gatt found, sending message");
             prepareToSendMessage(curConnection);
             BluetoothGattCharacteristic toSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
             toSend.setValue(mConnectionSystem.getToSendFragment(gatt, 0, ConnectionSystem.DATA_TYPE_MESSAGE));
             gatt.writeCharacteristic(toSend);
+        }
+        else {
+            Log.d(TAG, "Client gatt not found");
+            final String address = curConnection.getDevice().getAddress();
+            Handler mainHandler = new Handler(Looper.getMainLooper());
+            Runnable myRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
+                    if ((!connectionStatus.containsKey(device) || connectionStatus.get(device) == 0) && !connecting)
+                        EstablishConnection(device);
+                }
+            };
+            mainHandler.post(myRunnable);
         }
     }
 
@@ -126,13 +148,12 @@ public class BLEHandler {
         public synchronized void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
 
-            Connection curConnection;
+//            Connection curConnection;
             if (newState == BluetoothGatt.STATE_CONNECTED) {
-                curConnection = mConnectionSystem.createConnection(device);
-                curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
-                mConnectionSystem.putConnection(curConnection);
-                Log.d(TAG, "New server side connection formed with " + curConnection.getDevice().getAddress().toString());
-
+//                curConnection = mConnectionSystem.updateConnection(device);
+//                curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
+//                mConnectionSystem.putConnection(curConnection);
+//                Log.d(TAG, "New server side connection formed with " + curConnection.getDevice().getAddress().toString());
             }
             if (status == BluetoothGatt.STATE_DISCONNECTED) {
 //                mConnectionSystem.removeConnection(mConnectionSystem.getConnection(device));
@@ -141,49 +162,58 @@ public class BLEHandler {
         }
 
         @Override
+        public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+            if (characteristic.getUuid() == mAndroidIDCharUUID) {
+                Log.d(TAG, "Android ID read request received, sending android ID" + MainActivity.android_id);
+                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, MainActivity.android_id.getBytes());
+            }
+        }
+
+        @Override
         public synchronized void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
-            Connection curConnection = mConnectionSystem.getConnection(device);
-            int dataSequence = value[0];
-            int isLast = value[1];
-            int dataType = value[2];
 
+            if (characteristic.getUuid().equals(mAndroidIDCharUUID)) {
+                String neighborAndroidID = new String(value);
+                mConnectionSystem.updateConnection(neighborAndroidID, device);
+                mConnectionSystem.getConnection(neighborAndroidID).setMyHERAMatrix(myHera.getReachabilityMatrix());
+                Log.d(TAG, neighborAndroidID);
+            }
+            int dataSequence = value[1];
+            int isLast = value[2];
+            int dataType = value[0];
             Log.d(TAG, "Character write request sequence: " + dataSequence + " isLast: " + isLast + " dataType: " + dataType) ;
             if (characteristic.getUuid().equals(mCharUUID)) {
+                Connection curConnection = mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(device));
                 curConnection.writeToCache(Arrays.copyOfRange(value, curConnection.getOverHeadSize(), value.length));
-//                System.out.println("Current cache contains: " + ConnectionSystem.bytesToHex(mConnectionSystem.getConnection(device).getCache().toByteArray()));
                 if (isLast == 0) {
-                    if (dataType == ConnectionSystem.DATA_TYPE_NAME) {
-                        curConnection.setNeighborAndroidID();
-                        curConnection.resetCache();
-
-                        Log.d(TAG, "Android ID: " + curConnection.getNeighborAndroidID() + " received.");
-                    }
-                    else if (dataType == ConnectionSystem.DATA_TYPE_MATRIX) {
+                    if (dataType == ConnectionSystem.DATA_TYPE_MATRIX) {
                         curConnection.buildNeighborHERAMatrix();
                         curConnection.resetCache();
                         String neighborAndroidID = curConnection.getNeighborAndroidID();
                         myHera.updateDirectHop(neighborAndroidID);
                         myHera.updateTransitiveHops(neighborAndroidID, curConnection.getNeighborHERAMatrix());
                         mMessageSystem.buildToSendMessageQueue(curConnection);
-                        sendMessage(curConnection);
-
-                        Log.d(TAG, "Transmitting message packets");
-                    }
-                    else if (dataType == ConnectionSystem.DATA_TYPE_MESSAGE) {
+                        if (curConnection.isToSendQueueEmpty()) {
+                            sendMessage(curConnection);
+                            Log.d(TAG, "sendMessage Function called");
+                        }
+                        Log.d(TAG, "neighbor HERA matrix received");
+                    } else if (dataType == ConnectionSystem.DATA_TYPE_MESSAGE) {
                         curConnection.buildMessage(mMessageSystem);
                         curConnection.resetCache();
                     }
                 }
-                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
             }
+            mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
         }
 
         @Override
         public void onMtuChanged(BluetoothDevice device, int mtu) {
             super.onMtuChanged(device, mtu);
-            Connection curConnection = mConnectionSystem.getConnection(device);
-            curConnection.setServerMTU(mtu);
+//            Connection curConnection = mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(device));
+//            curConnection.setServerMTU(mtu);
             Log.d(TAG, "Server MTU with " + device.getAddress().toString() + " changed to " + mtu);
         }
     };
@@ -233,6 +263,10 @@ public class BLEHandler {
      * @Postcondition Creates Async thread that broadcasts BLE Beacons
      */
     public void startAdvertise() {
+        if (!mBluetoothAdapter.isEnabled()) {
+            Log.d(TAG, "Adapter isn't enabled");
+            return;
+        }
         mBluetoothAdapter.cancelDiscovery();
         AdvertiseData mAdvertiseData = prepareAdvertiseData("PlzWork");
         AdvertiseSettings mAdvertiseSettings = prepareAdvertiseSettings();
@@ -269,6 +303,10 @@ public class BLEHandler {
         return mScanSettingsBuilder.build();
     }
     public void startScan() {
+        if (!mBluetoothAdapter.isEnabled()) {
+            Log.d(TAG, "Adapter isn't enabled");
+            return;
+        }
         List<ScanFilter> mFilterList = prepareScanFilterList();
         ScanSettings mScanSettings = prepareScanSetting();
         mBluetoothLeScanner.startScan(mFilterList, mScanSettings, mScanCallback);
@@ -308,20 +346,22 @@ public class BLEHandler {
     }
 
     private void sendAndroidID(BluetoothGatt gatt) {
-        Connection curConnection = mConnectionSystem.getConnection(gatt);
-        curConnection.setMyAndroidID(Settings.Secure.getString(sContext.getContentResolver(),
-                Settings.Secure.ANDROID_ID));
-        BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
-        toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt,0, ConnectionSystem.DATA_TYPE_NAME));
+        BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mAndroidIDCharUUID);
+        toSendValue.setValue(MainActivity.android_id.getBytes());
+        Log.d(TAG, "Sending Android ID: " + new String(toSendValue.getValue()));
         gatt.writeCharacteristic(toSendValue);
     }
 
     private void sendHERAMatrix(BluetoothGatt gatt) {
-        Connection curConnection = mConnectionSystem.getConnection(gatt);
+        Connection curConnection = mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(gatt.getDevice()));
         curConnection.setMyHERAMatrix(myHera.getReachabilityMatrix());
         BluetoothGattCharacteristic toSendValue = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
         toSendValue.setValue(mConnectionSystem.getToSendFragment(gatt,0, ConnectionSystem.DATA_TYPE_MATRIX));
         gatt.writeCharacteristic(toSendValue);
+    }
+
+    private void getNeighborAndroidID(BluetoothGatt gatt) {
+        gatt.readCharacteristic(gatt.getService(mServiceUUID).getCharacteristic(mAndroidIDCharUUID));
     }
 
     private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
@@ -331,8 +371,8 @@ public class BLEHandler {
             super.onConnectionStateChange(gatt, status, newState);
             connecting = false;
             if(newState == BluetoothGatt.STATE_CONNECTED){
-                mConnectionSystem.createConnection(gatt);
-                Log.d(TAG, "Connection formed with: " + mConnectionSystem.getConnection(gatt).getAddress());
+//                mConnectionSystem.createConnection(gatt);
+//                Log.d(TAG, "Connection formed with: " + mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(gatt.getDevice())).getAddress());
                 connectionStatus.put(gatt.getDevice(), 2);
                 gatt.discoverServices();
             }
@@ -345,24 +385,13 @@ public class BLEHandler {
         }
 
         @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicRead(gatt, characteristic, status);
-            int scratchNumber = Integer.valueOf(characteristic.getUuid().toString().substring(7,8));
-            System.out.println("Scratch " + scratchNumber+ " read");
-            System.out.println(ConnectionSystem.bytesToHex(characteristic.getValue()));
-            if (scratchNumber < 5)
-                gatt.readCharacteristic(gatt.getService(UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE")).getCharacteristic(UUID.fromString("A495FF2" + String.valueOf(scratchNumber + 1)+ "-C5B1-4B44-B512-1370F02D74DE")));
-        }
-
-        @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             Log.d(TAG,"Service discovered");
             if (mConnectionSystem.isBean(gatt)) {
-                gatt.readCharacteristic(gatt.getService(UUID.fromString("A495FF20-C5B1-4B44-B512-1370F02D74DE")).getCharacteristic(UUID.fromString("A495FF21-C5B1-4B44-B512-1370F02D74DE")));
+                gatt.readCharacteristic(gatt.getService(BeanScratchServiceUUID).getCharacteristic(BeanScratchFirstCharUUID));
             }
-            else {
-                gatt.requestMtu(_mtu);
-                Log.d(TAG, "Requesting mtu change of " + _mtu);
+            else if (mConnectionSystem.isHERANode(gatt)) {
+                getNeighborAndroidID(gatt);
             }
         }
 
@@ -371,29 +400,64 @@ public class BLEHandler {
             super.onMtuChanged(gatt, mtu, status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "MTU changed with " + gatt.getDevice() + " to " + mtu);
-                mConnectionSystem.getConnection(gatt).setClientMTU(mtu);
+                mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(gatt.getDevice())).setClientMTU(mtu);
                 sendAndroidID(gatt);
             }
         }
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicRead(gatt, characteristic, status);
+            String TAG = "CharacteristicRead";
+            if (mConnectionSystem.isBean(gatt)) {
+                int scratchNumber = Integer.valueOf(characteristic.getUuid().toString().substring(7, 8));
+                System.out.println("Scratch " + scratchNumber + " read");
+                System.out.println(ConnectionSystem.bytesToHex(characteristic.getValue()));
+                if (scratchNumber < 5)
+                    gatt.readCharacteristic(gatt.getService(BeanScratchServiceUUID).getCharacteristic(UUID.fromString("A495FF2" + String.valueOf(scratchNumber + 1) + "-C5B1-4B44-B512-1370F02D74DE")));
+            }
+            else if (mConnectionSystem.isHERANode(gatt)) {
+                String neighborAndroidID = characteristic.getStringValue(0);
+                Log.d(TAG, "neighbor Android ID: " + neighborAndroidID);
+                mConnectionSystem.updateConnection(neighborAndroidID, gatt);
+                gatt.requestMtu(_mtu);
+                Log.d(TAG, "Requesting mtu change of " + _mtu);
+            }
+        }
+
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
+            String TAG = "CharacteristicWrite";
+            int dataType = characteristic.getValue()[0];
+            int prevSegCount = characteristic.getValue()[1];
+            int isLast = characteristic.getValue()[2];
 
-            int prevSegCount = characteristic.getValue()[0];
-            int isLast = characteristic.getValue()[1];
-            int dataType = characteristic.getValue()[2];
-            if(isLast == 0) {
-                Log.d(TAG, "All " + (prevSegCount + 1) + " segments have been transmitted");
-                if (dataType == ConnectionSystem.DATA_TYPE_NAME) {
-                    sendHERAMatrix(gatt);
-                }
+            if (characteristic.getUuid().equals(mAndroidIDCharUUID)) {
+                Log.d(TAG, "Android ID sent, sending HERA Matrix");
+                sendHERAMatrix(gatt);
                 return;
             }
-            BluetoothGattCharacteristic segmentToSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
-            segmentToSend.setValue(mConnectionSystem.getToSendFragment(gatt, prevSegCount + 1, ConnectionSystem.DATA_TYPE_MATRIX));
-            gatt.writeCharacteristic(segmentToSend);
-            Log.d(TAG, "Fragment " + (prevSegCount + 1) + " sent");
+            Connection curConnection = mConnectionSystem.getConnection(mConnectionSystem.getAndroidID(gatt.getDevice()));
+            if(isLast == 0) {
+                Log.d(TAG, "All " + (prevSegCount + 1) + " segments have been transmitted");
+                if (dataType == ConnectionSystem.DATA_TYPE_MATRIX) {
+                    if (!curConnection.isToSendQueueEmpty()) {
+                        Log.d(TAG, "toSend is not empty, sending message");
+                        sendMessage(curConnection);
+                    }
+                }
+                if (dataType == ConnectionSystem.DATA_TYPE_MESSAGE) {
+                    Log.d(TAG, "All messages have been transmitted, the connection will now terminate");
+                    gatt.disconnect();
+                }
+            }
+            else {
+                BluetoothGattCharacteristic segmentToSend = gatt.getService(mServiceUUID).getCharacteristic(mCharUUID);
+                segmentToSend.setValue(mConnectionSystem.getToSendFragment(gatt, prevSegCount + 1, ConnectionSystem.DATA_TYPE_MATRIX));
+                gatt.writeCharacteristic(segmentToSend);
+                Log.d(TAG, "Fragment " + (prevSegCount + 1) + " sent");
+            }
         }
     };
 }
